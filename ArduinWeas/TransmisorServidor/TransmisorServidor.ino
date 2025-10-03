@@ -14,9 +14,11 @@ ESP8266WebServer server(80);
 // Pines
 const int ledPin = 14;        // D3 (GPIO14)
 const int pirPin = 13;        // D7 (GPIO13)
+const int buzzerPin = 12;     // D6 (GPIO12) - Agregamos el pin del buzzer
 
 // Variables
 bool ledState = false;       // Estado del LED (ON/OFF)
+bool buzzerState = false;    // Estado del BUZZER (ON/OFF)
 bool motionDetected = false; // Estado del sensor de movimiento
 unsigned long lastMotionCheck = 0;
 const unsigned long motionCheckInterval = 1000; // Verificar movimiento cada segundo
@@ -52,12 +54,15 @@ void setup() {
   
   // Configurar pines
   pinMode(ledPin, OUTPUT);
+  pinMode(buzzerPin, OUTPUT); // Agregamos configuración del buzzer
   digitalWrite(ledPin, LOW);
+  digitalWrite(buzzerPin, LOW);
   pinMode(pirPin, INPUT);
   
   Serial.println("- Pines configurados");
   Serial.println("- LED en pin D3 (GPIO14)");
   Serial.println("- PIR en pin D7 (GPIO13)");
+  Serial.println("- Buzzer en pin D6 (GPIO12)");
   
   // Configuración WiFi mejorada
   WiFi.mode(WIFI_STA);
@@ -185,8 +190,11 @@ void checkMotion() {
       Serial.println("================");
       motionDetected = true;
       
-      // Encender LED al detectar movimiento
+      // Encender LED y activar buzzer al detectar movimiento
       digitalWrite(ledPin, HIGH);
+      digitalWrite(buzzerPin, HIGH);
+      delay(100);  // Beep corto
+      digitalWrite(buzzerPin, LOW);
       ledState = true;
       
       // Agregar registro de inicio de movimiento
@@ -203,9 +211,18 @@ void checkMotion() {
       Serial.println("================");
       motionDetected = false;
       
-      // Apagar LED cuando termina el movimiento
+      // Apagar LED y hacer doble beep cuando termina el movimiento
       digitalWrite(ledPin, LOW);
       ledState = false;
+      
+      // Doble beep
+      digitalWrite(buzzerPin, HIGH);
+      delay(50);
+      digitalWrite(buzzerPin, LOW);
+      delay(50);
+      digitalWrite(buzzerPin, HIGH);
+      delay(50);
+      digitalWrite(buzzerPin, LOW);
       
       // Agregar registro de fin de movimiento
       if (logCount < MAX_LOGS) {
@@ -229,6 +246,9 @@ void setupServerRoutes() {
   
   // Ruta raíz con información básica
   server.on("/", HTTP_GET, handleRoot);
+  
+  // Ruta para controlar el BUZZER
+  server.on("/buzzer", HTTP_GET, handleBuzzerControl);
   
   // Manejar rutas no encontradas
   server.onNotFound(handleNotFound);
@@ -351,6 +371,15 @@ void handleStatus() {
   html += "<div class='label'>Estado Movimiento</div>";
   html += "<div class='value' id='motion'>" + String(motionDetected ? "DETECTADO" : "NO DETECTADO") + "</div>";
   html += "</div>";
+  
+  // Estado del buzzer - NUEVO
+  html += "<div class='card'>";
+  html += "<div class='label'>Estado BUZZER</div>";
+  html += "<div class='value' id='buzzer'>" + String(buzzerState ? "ENCENDIDO" : "APAGADO") + "</div>";
+  html += "<div style='margin-top:10px'>";
+  html += "<a href='#' class='button on' onclick='toggleDevice(\"buzzer\", 1)'>Encender</a>";
+  html += "<a href='#' class='button off' onclick='toggleDevice(\"buzzer\", 0)'>Apagar</a>";
+  html += "</div></div>";
   
   // Información adicional
   html += "<div class='card'>";
@@ -504,4 +533,42 @@ void checkTimeout() {
     
     lastCheck = millis();
   }
+}
+
+void handleBuzzerControl() {
+    Serial.println("=== COMANDO BUZZER RECIBIDO ===");
+    
+    if (server.hasArg("state")) {
+        String stateStr = server.arg("state");
+        bool newState = (stateStr == "1" || stateStr.equalsIgnoreCase("true") || stateStr.equalsIgnoreCase("on"));
+        
+        buzzerState = newState;
+        digitalWrite(buzzerPin, buzzerState);
+        
+        // Actualizar información
+        lastCommandReceived = millis();
+        lastClientIP = server.client().remoteIP().toString();
+        commandsReceived++;
+        
+        Serial.print("BUZZER: ");
+        Serial.println(buzzerState ? "ENCENDIDO" : "APAGADO");
+        Serial.print("Cliente: ");
+        Serial.println(lastClientIP);
+        
+        // Respuesta JSON
+        String response = "{";
+        response += "\"status\":\"ok\",";
+        response += "\"buzzer_state\":" + String(buzzerState ? "true" : "false") + ",";
+        response += "\"command_count\":" + String(commandsReceived) + ",";
+        response += "\"timestamp\":" + String(millis());
+        response += "}";
+        
+        server.send(200, "application/json", response);
+        
+    } else {
+        Serial.println("✗ Error: falta parámetro 'state'");
+        server.send(400, "application/json", "{\"error\":\"missing state parameter (0 or 1)\"}");
+    }
+    
+    Serial.println();
 }
