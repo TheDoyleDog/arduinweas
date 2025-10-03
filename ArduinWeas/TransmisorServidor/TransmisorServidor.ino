@@ -21,7 +21,7 @@ bool ledState = false;       // Estado del LED (ON/OFF)
 bool buzzerState = false;    // Estado del BUZZER (ON/OFF)
 bool motionDetected = false; // Estado del sensor de movimiento
 unsigned long lastMotionCheck = 0;
-const unsigned long motionCheckInterval = 1000; // Verificar movimiento cada segundo
+const unsigned long motionCheckInterval = 500; // Cambiado a 500ms (medio segundo)
 String lastClientIP = "";
 unsigned long lastCommandReceived = 0;
 int val = 0;                // Variable para leer el estado del sensor PIR
@@ -448,7 +448,8 @@ void handleRoot() {
   html += "</style>";
   html += "<script>";
   html += "function toggleDevice(device, state) {";
-  html += "  fetch('/led?state=' + state)";
+  html += "  const endpoint = device === 'led' ? '/led' : '/buzzer';";  // Modificado para manejar buzzer
+  html += "  fetch(endpoint + '?state=' + state)";
   html += "    .then(response => response.json())";
   html += "    .then(data => {";
   html += "      location.reload();";
@@ -474,6 +475,14 @@ void handleRoot() {
   html += "<p>Estado actual: <strong id='led'>" + String(ledState ? "ENCENDIDO" : "APAGADO") + "</strong></p>";
   html += "<a href='#' class='button on' onclick='toggleDevice(\"led\", 1)'>Encender</a>";
   html += "<a href='#' class='button off' onclick='toggleDevice(\"led\", 0)'>Apagar</a>";
+  html += "</div>";
+  
+  // Nuevo: Card para control del Buzzer
+  html += "<div class='card'>";
+  html += "<h2>Control de Buzzer</h2>";
+  html += "<p>Estado actual: <strong id='buzzer'>" + String(buzzerState ? "ENCENDIDO" : "APAGADO") + "</strong></p>";
+  html += "<a href='#' class='button on' onclick='toggleDevice(\"buzzer\", 1)'>Encender</a>";
+  html += "<a href='#' class='button off' onclick='toggleDevice(\"buzzer\", 0)'>Apagar</a>";
   html += "</div>";
   
   // Card para sensor PIR
